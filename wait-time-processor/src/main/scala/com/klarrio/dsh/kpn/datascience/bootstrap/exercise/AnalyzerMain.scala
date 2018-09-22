@@ -12,11 +12,11 @@ import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 
 /**
- * Starting point of the application
+  * Starting point of the application
   * You can keep the code of the application logic for simplicity of this first application.
   * This AnalyzerMain object contains a main function and is therefore the Main class.
   * This is the point from which the Scala application will start its execution.
- */
+  */
 object AnalyzerMain {
   def main(args: Array[String]): Unit = {
     // Initialize Spark
@@ -27,20 +27,20 @@ object AnalyzerMain {
 
     /** Initialize and broadcast the Kafka producer
       * This makes sure that the Kafka producer is available in each executor and for each partition of the data
-       */
+      */
     val kafkaProducer: Broadcast[SparkKafkaProducer] = {
       val kafkaProducerConfig = ConfigFetcher.kafkaProducerParams
       ssc.sparkContext.broadcast(SparkKafkaProducer(kafkaProducerConfig))
     }
 
     /**
-     * 1. READ FROM KAFKA STREAM
+      * 1. READ FROM KAFKA STREAM
       * If data is to be published on the platform it has to be in a certain structure.
       * Kafka messages always contain a key and a message. To able to publish them to the platform
       * these keys and messages need to be packaged in data structures called: KeyEnvelopes and DataEnvelopes.
       * Consequently, when we read data from the platform the data type of the incoming stream will be
       * [KeyEnvelope, DataEnvelope].
-     * input topic = ConfigFetcher.inputCallcenterLogsTopic
+      * input topic = ConfigFetcher.inputCallcenterLogsTopic
       * data type of the stream: [KeyEnvelope, DataEnvelope]
       * use the kafkaParams variable for the kafka parameters
       * You will then get a stream of ConsumerRecords which contains some information about the Kafka data:
@@ -52,23 +52,23 @@ object AnalyzerMain {
       * - timestamp
       * Extract the JSON message from the data envelope by mapping the record:
       * (r: ConsumerRecord[KeyEnvelope, DataEnvelope] => record.value().getBinary.toStringUtf8)
-     */
+      */
     val callcenterLogsStream = KafkaUtils
       .createDirectStream[KeyEnvelope, DataEnvelope](
-        ssc,
-        PreferConsistent,
-        ConsumerStrategies.Subscribe[KeyEnvelope, DataEnvelope](
-          Array(ConfigFetcher.inputCallcenterLogsTopic),
-          kafkaParams
-        )
-      ).map { r: ConsumerRecord[KeyEnvelope, DataEnvelope] => r.value().getBinary.toStringUtf8 }
+      ssc,
+      PreferConsistent,
+      ConsumerStrategies.Subscribe[KeyEnvelope, DataEnvelope](
+        Array(ConfigFetcher.inputCallcenterLogsTopic),
+        kafkaParams
+      )
+    ).map { r: ConsumerRecord[KeyEnvelope, DataEnvelope] => r.value().getBinary.toStringUtf8 }
 
     /**
-     * 2. PARSE THE STREAM
-     * Parse the csv line by splitting it on comma and putting the elements in the case class.
-     * The timestamps will be read as String and need to be parsed to datetime. Use the method implemented for this.
-     * The order of the features is the same in the data as in the case class.
-     */
+      * 2. PARSE THE STREAM
+      * Parse the csv line by splitting it on comma and putting the elements in the case class.
+      * The timestamps will be read as String and need to be parsed to datetime. Use the method implemented for this.
+      * The order of the features is the same in the data as in the case class.
+      */
     val dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
     val simpleDateFormat = new SimpleDateFormat(dateFormat)
 
@@ -92,48 +92,44 @@ object AnalyzerMain {
       })
 
     /**
-     * 3. COMPUTE KPIs: WAIT TIME
+      * 3. COMPUTE KPIs: WAIT TIME
       * Check if the RDD is emtpy
       * If the RDD is not empty compute the following:
       * 1.  Filter out the calls that are not in the queue anymore (use pubTime and compare it to another timestamp in the observation)
       * 2.  Compute the total time each of the calls was in the queue using dt_start and dt_offered
       * 3.  Compute the average time calls are in a queue: Compute the total sum of queueing times and divide by the amount of calls
-      *     Use reduce and map to compute the total queueing time and the total amount of calls. Then compute the average using those numbers.
+      * Use reduce and map to compute the total queueing time and the total amount of calls. Then compute the average using those numbers.
       * 4.  Publish this average amount on Kafka
-      *     Use the send function of the broadcasted kafkaProducer instance
-      *     output topic: ConfigFetcher.outputKpiTopic
-      *     kafka key: "wait-time"
-      *     kafka value: "[{\"pubTime\":" + pubTime + ",\"queueDuration\":" + avgQueueTime + "}]"
-      *     The logic of the producer will package the key and the value in the appropriate KeyEnvelope and DataEnvelope
-      *     data structures, serialize them into byte arrays, and publish them onto the Kafka topic.
-     */
+      * Use the send function of the broadcasted kafkaProducer instance
+      * output topic: ConfigFetcher.outputKpiTopic
+      * kafka key: "wait-time"
+      * kafka value: "[{\"pubTime\":" + pubTime + ",\"queueDuration\":" + avgQueueTime + "}]"
+      * The logic of the producer will package the key and the value in the appropriate KeyEnvelope and DataEnvelope
+      * data structures, serialize them into byte arrays, and publish them onto the Kafka topic.
+      */
 
     parsedLogsStream.foreachRDD { rdd =>
-      if (!rdd.isEmpty()) {
-        val pubTime = rdd.map(_.pubTime.getTime).max()
+      val pubTime = rdd.map(_.pubTime.getTime).max()
 
-        val (totalQueueDuration, size) = rdd.filter { observation: CallObservation =>
-          (observation.pubTime.equals(observation.dt_start) || observation.pubTime.after(observation.dt_start))
-        }.map { observation: CallObservation =>
-          //total call duration in minutes, with queueing and all services included
-          val totalQueueDuration = (observation.dt_start.getTime - observation.dt_offered.getTime) / 60000d
-          (totalQueueDuration, 1.0)
-        }.reduce {
-          case ((totalQueueduration1: Double, size1: Double), (totalQueueDuration2: Double, size2: Double)) =>
-            (totalQueueduration1 + totalQueueDuration2, size1 + size2)
-        }
-        val avgQueueTime = totalQueueDuration / size
-
-        val record = "[{\"pubTime\":" + pubTime + ",\"queueDuration\":" + avgQueueTime + "}]"
-        kafkaProducer.value.send(ConfigFetcher.outputKpiTopic, "wait-time", record.toString)
+      val (totalQueueDuration, size) = rdd.filter { observation: CallObservation =>
+        (observation.pubTime.equals(observation.dt_start) || observation.pubTime.after(observation.dt_start))
+      }.map { observation: CallObservation =>
+        //total call duration in minutes, with queueing and all services included
+        val totalQueueDuration = (observation.dt_start.getTime - observation.dt_offered.getTime) / 60000d
+        (totalQueueDuration, 1.0)
+      }.reduce {
+        case ((totalQueueduration1: Double, size1: Double), (totalQueueDuration2: Double, size2: Double)) =>
+          (totalQueueduration1 + totalQueueDuration2, size1 + size2)
       }
+      val avgQueueTime = totalQueueDuration / size
+      println(avgQueueTime)
     }
 
     /**
-     * To start any Spark streaming application, you need to call start and awaitTermination on the streaming context
+      * To start any Spark streaming application, you need to call start and awaitTermination on the streaming context
       * You put this at the end of the application code. Spark will generate a JobGraph from the transformation and
       * operations that have been defined before this, it will optimize the operator chaining and execute the flow.
-     */
+      */
     ssc.start()
     ssc.awaitTermination()
   }
@@ -155,7 +151,7 @@ object AnalyzerMain {
       * The checkpoint directory is the place where Spark will save its checkpoint data.
       * Checkpointing is used for failure recovery. It saves the state of the application at regular intervals
       * so that it can start from the latest saved state if a failure occurs.
-       */
+      */
     ssc.checkpoint("./checkpoint-dir")
 
     (sparkSession, ssc)
@@ -165,6 +161,7 @@ object AnalyzerMain {
     * Initializes the consumer parameters to read from Kafka.
     * It tells the consumer to deserialize the data into the structure of KeyEnvelopes and DataEnvelopes
     * And it contains some configurations for failures and restarts.
+    *
     * @return
     */
   def initKafkaConsumerParams(): Map[String, Object] = {
@@ -177,8 +174,8 @@ object AnalyzerMain {
   }
 
   /**
-   * Parse timestamp of raw stream
-   */
+    * Parse timestamp of raw stream
+    */
   def extractTimestamp(simpleDateFormat: SimpleDateFormat, obs: String): Timestamp = {
     new Timestamp(simpleDateFormat.parse(obs).getTime)
   }

@@ -112,8 +112,7 @@ object AnalyzerMain {
       *
      */
     // AMT OF QUEUERS PER SERVICE
-    parsedLogsStream.foreachRDD { rdd =>
-      if (!rdd.isEmpty()) {
+    parsedLogsStream.transform { rdd =>
         val pubTime = rdd.map(_.pubTime.getTime).max()
         val queuersPerServiceString = rdd.filter { observation: CallObservation =>
           observation.pubTime.before(observation.dt_start) && observation.pubTime.after(observation.dt_offered_queue)
@@ -122,12 +121,9 @@ object AnalyzerMain {
           .map {
             case (serviceName: String, amtOfQueuers: Int) =>
               "{\"pubTime\":" + pubTime + ",\"serviceName\":\"" + serviceName + "\",\"amtOfQueuersInService\":" + amtOfQueuers.toInt + "}"
-          }.collect().mkString(",")
-
-        val record = "[" + queuersPerServiceString + "]"
-        kafkaProducer.value.send(ConfigFetcher.outputKpiTopic, "queuers-per-service", record.toString)
-      }
-    }
+          }
+        queuersPerServiceString
+    }.print(2)
 
 
     /**

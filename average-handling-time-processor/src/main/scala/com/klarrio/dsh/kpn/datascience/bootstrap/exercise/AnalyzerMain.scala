@@ -56,13 +56,13 @@ object AnalyzerMain {
       */
     val callcenterLogsStream = KafkaUtils
       .createDirectStream[KeyEnvelope, DataEnvelope](
-        ssc,
-        PreferConsistent,
-        ConsumerStrategies.Subscribe[KeyEnvelope, DataEnvelope](
-          Array(ConfigFetcher.inputCallcenterLogsTopic),
-          kafkaParams
-        )
-      ).map { r: ConsumerRecord[KeyEnvelope, DataEnvelope] => r.value().getBinary.toStringUtf8 }
+      ssc,
+      PreferConsistent,
+      ConsumerStrategies.Subscribe[KeyEnvelope, DataEnvelope](
+        Array(ConfigFetcher.inputCallcenterLogsTopic),
+        kafkaParams
+      )
+    ).map { r: ConsumerRecord[KeyEnvelope, DataEnvelope] => r.value().getBinary.toStringUtf8 }
 
     /**
       * 2. PARSE THE STREAM
@@ -94,38 +94,34 @@ object AnalyzerMain {
       })
 
     /**
-     * 3. COMPUTE KPIs: AVERAGE HANDLING TIME
+      * 3. COMPUTE KPIs: AVERAGE HANDLING TIME
       * Check if the RDD is emtpy
       * If the RDD is not empty compute the following:
       * 1. Filter out the observations that have been handled
       * 2. Compute the average call duration in minutes using dt_handled and dt_offered
       * Use reduce and map to compute the total duration of all the calls together and divide that by the amount of calls
       * 3. Publish this average amount on Kafka
-      *     Use the send function of the broadcasted kafkaProducer instance
-      *     output topic: ConfigFetcher.outputKpiTopic
-      *     kafka key: "average-handling-time"
-      *     kafka value: "[{\"pubTime\":" + pubTime + ",\"avgCallDuration\":" + avgDuration + "}]"
-      *     The logic of the producer will package the key and the value in the appropriate KeyEnvelope and DataEnvelope
-      *     data structures, serialize them into byte arrays, and publish them onto the Kafka topic.
-     */
+      * Use the send function of the broadcasted kafkaProducer instance
+      * output topic: ConfigFetcher.outputKpiTopic
+      * kafka key: "average-handling-time"
+      * kafka value: "[{\"pubTime\":" + pubTime + ",\"avgCallDuration\":" + avgDuration + "}]"
+      * The logic of the producer will package the key and the value in the appropriate KeyEnvelope and DataEnvelope
+      * data structures, serialize them into byte arrays, and publish them onto the Kafka topic.
+      */
     // AVERAGE ENTIRE CALL DURATION OVER ALL SERVICES
     //DT_HANDLED - DT_OFFERED
     parsedLogsStream.foreachRDD { rdd =>
-      if (!rdd.isEmpty()) {
-        val pubTime = rdd.map(_.pubTime.getTime).max
-        val (totalCallDuration, totalCalls) = rdd.filter { observation: CallObservation =>
-          observation.pubTime.after(observation.dt_handled)
-        }.map { obs: CallObservation =>
-          //total call duration in minutes, with queueing and all services included
-          val totalCallDuration = (obs.dt_handled.getTime - obs.dt_offered.getTime) / 60000d
-          (totalCallDuration, 1.0)
-        }.reduce((d1, d2) => (d1._1 + d2._1, d1._2 + d2._2))
+      val pubTime = rdd.map(_.pubTime.getTime).max
+      val (totalCallDuration, totalCalls) = rdd.filter { observation: CallObservation =>
+        observation.pubTime.after(observation.dt_handled)
+      }.map { obs: CallObservation =>
+        //total call duration in minutes, with queueing and all services included
+        val totalCallDuration = (obs.dt_handled.getTime - obs.dt_offered.getTime) / 60000d
+        (totalCallDuration, 1.0)
+      }.reduce((d1, d2) => (d1._1 + d2._1, d1._2 + d2._2))
 
-        val avgDuration = totalCallDuration / totalCalls
-
-        val record = "[{\"pubTime\":" + pubTime + ",\"avgCallDuration\":" + avgDuration + "}]"
-        kafkaProducer.value.send(ConfigFetcher.outputKpiTopic, "average-handling-time", record)
-      }
+      val avgDuration = totalCallDuration / totalCalls
+      println("avgDuration: " + avgDuration)
     }
 
     /**
@@ -163,6 +159,7 @@ object AnalyzerMain {
     * Initializes the consumer parameters to read from Kafka.
     * It tells the consumer to deserialize the data into the structure of KeyEnvelopes and DataEnvelopes
     * And it contains some configurations for failures and restarts.
+    *
     * @return
     */
   def initKafkaConsumerParams(): Map[String, Object] = {
@@ -175,8 +172,8 @@ object AnalyzerMain {
   }
 
   /**
-   * Parse timestamp of raw stream
-   */
+    * Parse timestamp of raw stream
+    */
   def extractTimestamp(simpleDateFormat: SimpleDateFormat, obs: String): Timestamp = {
     new Timestamp(simpleDateFormat.parse(obs).getTime)
   }

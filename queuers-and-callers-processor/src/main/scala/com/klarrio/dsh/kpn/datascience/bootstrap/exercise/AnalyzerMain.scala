@@ -34,7 +34,7 @@ object AnalyzerMain {
     }
 
     /**
-     * 1. READ FROM KAFKA STREAM
+      * 1. READ FROM KAFKA STREAM
       * If data is to be published on the platform it has to be in a certain structure.
       * Kafka messages always contain a key and a message. To able to publish them to the platform
       * these keys and messages need to be packaged in data structures called: KeyEnvelopes and DataEnvelopes.
@@ -55,13 +55,13 @@ object AnalyzerMain {
       */
     val callcenterLogsStream = KafkaUtils
       .createDirectStream[KeyEnvelope, DataEnvelope](
-        ssc,
-        PreferConsistent,
-        ConsumerStrategies.Subscribe[KeyEnvelope, DataEnvelope](
-          Array(ConfigFetcher.inputCallcenterLogsTopic),
-          kafkaParams
-        )
-      ).map { r: ConsumerRecord[KeyEnvelope, DataEnvelope] => r.value().getBinary.toStringUtf8 }
+      ssc,
+      PreferConsistent,
+      ConsumerStrategies.Subscribe[KeyEnvelope, DataEnvelope](
+        Array(ConfigFetcher.inputCallcenterLogsTopic),
+        kafkaParams
+      )
+    ).map { r: ConsumerRecord[KeyEnvelope, DataEnvelope] => r.value().getBinary.toStringUtf8 }
 
     callcenterLogsStream.print(30)
 
@@ -94,36 +94,32 @@ object AnalyzerMain {
       })
 
     /**
-     * 3. COMPUTE KPIs: QUEUERS AND CALLERS
+      * 3. COMPUTE KPIs: QUEUERS AND CALLERS
       * Check if the RDD is empty
       * If the RDD is not empty compute the following:
       * 1. Amount of callers is the amount of records in the rdd
       * 2. For the amount of queuers: filter out the calls that are not being helped yet.
-      *    Then compute the amount of observations in this filtered stream.
+      * Then compute the amount of observations in this filtered stream.
       * 3. Compute the ratio as a number between 0 and 1 that describes the percentage of the people that is being helped
       * 4.  Publish this average amount on Kafka
-      *     Use the send function of the broadcasted kafkaProducer instance
-      *     output topic: ConfigFetcher.outputKpiTopic
-      *     kafka key: "queuers-and-callers"
-      *     kafka value: "[{\"pubTime\":" + pubTime + ",\"queueSize\":" + amtOfQueuers + " ,\"callsAmt\":" + amtOfCallers + ",\"ratioServed\":" + ratio + "}]"
-      *     The logic of the producer will package the key and the value in the appropriate KeyEnvelope and DataEnvelope
-      *     data structures, serialize them into byte arrays, and publish them onto the Kafka topic.
-    */
+      * Use the send function of the broadcasted kafkaProducer instance
+      * output topic: ConfigFetcher.outputKpiTopic
+      * kafka key: "queuers-and-callers"
+      * kafka value: "[{\"pubTime\":" + pubTime + ",\"queueSize\":" + amtOfQueuers + " ,\"callsAmt\":" + amtOfCallers + ",\"ratioServed\":" + ratio + "}]"
+      * The logic of the producer will package the key and the value in the appropriate KeyEnvelope and DataEnvelope
+      * data structures, serialize them into byte arrays, and publish them onto the Kafka topic.
+      */
     parsedLogsStream.foreachRDD { rdd =>
-      if (!rdd.isEmpty()) {
-        val pubTime = rdd.map(_.pubTime.getTime).max()
-        val amtOfCallers = rdd.count()
+      val pubTime = rdd.map(_.pubTime.getTime).max()
+      val amtOfCallers = rdd.count()
 
-        val amtOfQueuers = rdd.filter { observation =>
-          observation.pubTime.before(observation.dt_start) && observation.pubTime.after(observation.dt_offered_queue)
-        }.count()
+      val amtOfQueuers = rdd.filter { observation =>
+        observation.pubTime.before(observation.dt_start) && observation.pubTime.after(observation.dt_offered_queue)
+      }.count()
 
-        val ratio = 1.0 - (amtOfQueuers.toDouble / amtOfCallers.toDouble)
+      val ratio = 1.0 - (amtOfQueuers.toDouble / amtOfCallers.toDouble)
 
-        val record = "[{\"pubTime\":" + pubTime + ",\"queueSize\":" + amtOfQueuers + " ,\"callsAmt\":" + amtOfCallers + ",\"ratioServed\":" + ratio + "}]"
-
-        kafkaProducer.value.send(ConfigFetcher.outputKpiTopic, "queuers-and-callers", record.toString)
-      }
+      println("amtOfCallers: " + amtOfCallers + " amtOfQueuers: " + amtOfQueuers + " ratio: " + ratio)
     }
 
     /**
@@ -134,6 +130,7 @@ object AnalyzerMain {
     ssc.start()
     ssc.awaitTermination()
   }
+
   def initSpark(): (SparkSession, StreamingContext) = {
     val sparkSession: SparkSession = SparkSession.builder
       .appName("dsh-kpn-datascience-bootstrap-exercise")
@@ -161,6 +158,7 @@ object AnalyzerMain {
     * Initializes the consumer parameters to read from Kafka.
     * It tells the consumer to deserialize the data into the structure of KeyEnvelopes and DataEnvelopes
     * And it contains some configurations for failures and restarts.
+    *
     * @return
     */
   def initKafkaConsumerParams(): Map[String, Object] = {
@@ -174,8 +172,8 @@ object AnalyzerMain {
 
 
   /**
-   * Parse timestamp of raw stream
-   */
+    * Parse timestamp of raw stream
+    */
   def extractTimestamp(simpleDateFormat: SimpleDateFormat, obs: String): Timestamp = {
     new Timestamp(simpleDateFormat.parse(obs).getTime)
   }
