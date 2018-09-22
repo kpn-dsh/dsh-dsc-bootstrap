@@ -44,20 +44,8 @@ object AnalyzerMain {
     /**
      * 1. READ FROM KAFKA STREAM
      */
-    val featuresStreams = KafkaUtils
-      .createDirectStream[KeyEnvelope, DataEnvelope](
-        ssc,
-        PreferConsistent,
-        ConsumerStrategies.Subscribe[KeyEnvelope, DataEnvelope](
-          Array(
-            ConfigFetcher.averageHandlingTimeTopic,
-            ConfigFetcher.queuersAndCallersTopic,
-            ConfigFetcher.queuersPerServiceTopic,
-            ConfigFetcher.waitTimeTopic
-          ),
-          kafkaParams
-        )
-      )
+
+
 
     /**
      * 2. PARSE THE JSON OBSERVATIONS
@@ -65,30 +53,10 @@ object AnalyzerMain {
       * as in the following example: https://circe.github.io/circe/codec.html
       * return the pubTime and the parsed object of the case class
      */
-    val averageHandlingTimeStream = featuresStreams.filter(_.topic().contains(ConfigFetcher.averageHandlingTimeTopic))
-      .map { r: ConsumerRecord[KeyEnvelope, DataEnvelope] =>
-        val jsonString = r.value().getBinary.toStringUtf8
-        val avgHandlingTime = decode[List[AverageHandlingTime]](jsonString).right.get(0)
-        (avgHandlingTime.pubTime, avgHandlingTime)
-      }
 
-    val queuersAndCallersStream = featuresStreams.filter(_.topic().contains(ConfigFetcher.queuersAndCallersTopic))
-      .map { r: ConsumerRecord[KeyEnvelope, DataEnvelope] =>
-        val jsonString = r.value().getBinary.toStringUtf8
-        val queuersAndCallers = decode[List[QueuersAndCallers]](jsonString).right.get(0)
-        (queuersAndCallers.pubTime, queuersAndCallers)
-      }
 
-    val waitTimeStream = featuresStreams.filter(_.topic().contains(ConfigFetcher.waitTimeTopic))
-      .map { r: ConsumerRecord[KeyEnvelope, DataEnvelope] =>
-        val jsonString = r.value().getBinary.toStringUtf8
-        val waitTime = decode[List[WaitTime]](jsonString).right.get(0)
-        (waitTime.pubTime, waitTime)
-      }
 
-    averageHandlingTimeStream.print(2)
-    queuersAndCallersStream.print(2)
-    waitTimeStream.print(2)
+
 
     /**
      * 3. SCORE THE STREAM
