@@ -86,6 +86,10 @@ object AnalyzerMain {
         (waitTime.pubTime, waitTime)
       }
 
+    averageHandlingTimeStream.print(2)
+    queuersAndCallersStream.print(2)
+    waitTimeStream.print(2)
+
     /**
      * 3. SCORE THE STREAM
       * 1. Do a left outer join of the queuersAndCallersStream with the averageHandlingTimeStream and the waitTimeStream
@@ -115,74 +119,10 @@ object AnalyzerMain {
       *   key: "predicted-wait-time-15m"
       *   value: "[{\"predWaitTime15min\":\"" + predictedLabelValue + "\"}]"
      */
-    queuersAndCallersStream.leftOuterJoin(averageHandlingTimeStream).leftOuterJoin(waitTimeStream)
-      .foreachRDD { rdd =>
-        if (!rdd.isEmpty()) {
 
-          val maxPubTime = rdd.map(_._1).max()
-          println("MAX PUB TIME: " + maxPubTime)
-          val featureSet = rdd.map {
-            case (pubTime: Long, features: ((QueuersAndCallers, Option[AverageHandlingTime]), Option[WaitTime])) =>
-              val queuersAndCallers = features._1._1
-              val handlingTime = features._1._2.getOrElse(AverageHandlingTime(0l, 0.0))
-              val waitTime = features._2.getOrElse(WaitTime(0l, 0.0))
-              Features(pubTime, queuersAndCallers.callsAmt, queuersAndCallers.queueSize, waitTime.queueDuration, handlingTime.avgCallDuration)
-          }.toDF
 
-          amtCallersModel
-            .transform(featureSet)
-            .filter(col("pubTime") === maxPubTime)
-            .select("predictedLabel")
-            .rdd
-            .foreachPartition {
-              partitionOfRecords =>
-                val metadata: Stream[Future[RecordMetadata]] = partitionOfRecords.map { r: Row =>
-                  val record = "[{\"predDirectionCallers15min\":\"" + r.getString(0) + "\"}]"
-                  kafkaProducer.value.send(ConfigFetcher.predictedAmtCallers15mTopic, "predicted-direction-callers", record.toString)
-                }.toStream
-                metadata.foreach { metadata => metadata.get() }
-            }
 
-          amtQueuersModel.transform(featureSet)
-            .filter(col("pubTime") === maxPubTime)
-            .select("prediction")
-            .rdd
-            .foreachPartition {
-              partitionOfRecords =>
-                val metadata: Stream[Future[RecordMetadata]] = partitionOfRecords.map { r: Row =>
-                  val record = "[{\"predAmtQueuers15min\":\"" + r.getDouble(0) + "\"}]"
-                  kafkaProducer.value.send(ConfigFetcher.predictedAmtQueuers15mTopic, "predicted-amt-queuers", record.toString)
-                }.toStream
-                metadata.foreach { metadata => metadata.get() }
-            }
 
-          waitTime5mModel.transform(featureSet)
-            .filter(col("pubTime") === maxPubTime)
-            .select("prediction")
-            .rdd
-            .foreachPartition {
-              partitionOfRecords =>
-                val metadata: Stream[Future[RecordMetadata]] = partitionOfRecords.map { r: Row =>
-                  val record = "[{\"predWaitTime5min\":\"" + r.getDouble(0) + "\"}]"
-                  kafkaProducer.value.send(ConfigFetcher.predictedWait5mTopic, "predicted-wait-time-5m", record.toString)
-                }.toStream
-                metadata.foreach { metadata => metadata.get() }
-            }
-
-          waitTime15Model.transform(featureSet)
-            .filter(col("pubTime") === maxPubTime)
-            .select("prediction")
-            .rdd
-            .foreachPartition {
-              partitionOfRecords =>
-                val metadata: Stream[Future[RecordMetadata]] = partitionOfRecords.map { r: Row =>
-                  val record = "[{\"predWaitTime15min\":\"" + r.getDouble(0) + "\"}]"
-                  kafkaProducer.value.send(ConfigFetcher.predictedWait15mTopic, "predicted-wait-time-15m", record.toString)
-                }.toStream
-                metadata.foreach { metadata => metadata.get() }
-            }
-        }
-      }
 
     /**
      * To start any Spark streaming application, you need to call start and awaitTermination on the streaming context
