@@ -1,0 +1,8 @@
+.idea
+target
+project/project
+/project/target/
+/dsh-kpn-datascience-bootstrap-exercise.ipr
+/dsh-kpn-datascience-bootstrap-exercise.iws
+/average-handling-time-processor.ipr
+/average-handling-time-processor.iws

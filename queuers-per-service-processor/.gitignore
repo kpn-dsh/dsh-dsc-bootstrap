@@ -1,0 +1,15 @@
+.idea
+target
+project/project
+/project/target/
+/dsh-kpn-datascience-bootstrap-exercise.ipr
+/dsh-kpn-datascience-bootstrap-exercise.iws
+/queuers-per-service-processor.ipr
+/queuers-per-service-processor.iws
+
+
+# vim specific
+tags
+*~
+.*.swp
+.*.swo

@@ -1,0 +1,14 @@
+{
+	"image": "dataserviceshub-docker-dshdemo1.jfrog.io/wait-time-processor:0.0.1",
+	"cpus": 2,
+	"mem": 3096,
+	"env": {
+		"KAFKA_CALLCENTER_LOGS_TOPIC": "stream.dsc-bootstrap-ingest-calls.dsh",
+		"KAFKA_OUTAGES_TOPIC": "stream.dsc-bootstrap-ingest-outages.dsh",
+		"KAFKA_OUTPUT_TOPIC": "stream.dsc-bootstrap-wait-time.dshdemo1",
+	},
+	"instances": 1,
+	"singleInstance": false,
+	"needsToken": true,
+	"user": "1024:1024"
+}

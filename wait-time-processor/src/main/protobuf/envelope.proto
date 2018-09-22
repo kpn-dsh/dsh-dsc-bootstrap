@@ -1,0 +1,51 @@
+syntax = "proto3";
+package com.klarrio.zipper.messages.common;
+
+option java_package = "com.klarrio.zipper.messages.common";
+option go_package = "zipper";
+
+// definition of the common message envelope
+// this envelope is put around *any* ingested data
+message KeyEnvelope {
+
+    //mandatory: fixed system metadata header
+    FixedHeader header = 1;
+
+    string key = 2;
+
+    message FixedHeader {
+        Identity identifier = 1;
+
+        //marks the message as 'retained'
+        //and as such will be persisted for later usage
+        bool retained = 2;
+
+        //the QOS with wich the message is handled within the system
+        QoS qos = 3;
+
+        //identifies the data origin
+        message Identity {
+            string  tenant    = 1;
+            string  publisher = 2;
+        }
+
+        //System QOS identifiers
+        enum QoS {
+            BEST_EFFORT  = 0;   //might be dropped in case of resources running low (~ highest throughput)
+            RELIABLE     = 1;   //will *never* be dropped and retried until success (~ lowest throughput)
+        }
+
+    }
+
+
+}
+
+// definition of the common message envelope
+// this envelope is put around *any* ingested data
+message DataEnvelope {
+    oneof payload {
+        bytes binary = 1;
+    }
+
+    map<string, string> tracing = 2;
+}

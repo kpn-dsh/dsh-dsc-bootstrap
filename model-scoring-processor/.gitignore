@@ -1,0 +1,11 @@
+.idea
+target
+project/project
+/project/target/
+/model-scoring-processor.ipr
+/model-scoring-processor.iws
+# vim specific
+tags
+*~
+.*.swp
+.*.swo

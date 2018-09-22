@@ -1,0 +1,14 @@
+.idea
+target
+project/project
+/project/target/
+/dsh-kpn-datascience-bootstrap-exercise.ipr
+/dsh-kpn-datascience-bootstrap-exercise.iws
+/wait-time-processor.ipr
+/wait-time-processor.iws
+
+# vim specific
+tags
+*~
+.*.swp
+.*.swo
