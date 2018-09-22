@@ -65,6 +65,9 @@ object AnalyzerMain {
         )
       ).map { r: ConsumerRecord[KeyEnvelope, DataEnvelope] => r.value().getBinary.toStringUtf8 }
 
+    callcenterLogsStream.print(2)
+
+
     /**
       * 2. PARSE THE STREAM
       * Parse the csv line by splitting it on comma and putting the elements in the case class.
@@ -74,24 +77,7 @@ object AnalyzerMain {
     val dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
     val simpleDateFormat = new SimpleDateFormat(dateFormat)
 
-    val parsedLogsStream = callcenterLogsStream.transform(rdd =>
-      rdd.map { str: String =>
-        val spl = str.split(",")
-        CallObservation(
-          extractTimestamp(simpleDateFormat, spl(0)),
-          spl(1),
-          extractTimestamp(simpleDateFormat, spl(2)),
-          extractTimestamp(simpleDateFormat, spl(3)),
-          extractTimestamp(simpleDateFormat, spl(4)),
-          extractTimestamp(simpleDateFormat, spl(5)),
-          extractTimestamp(simpleDateFormat, spl(6)),
-          extractTimestamp(simpleDateFormat, spl(7)),
-          spl(8),
-          spl(9),
-          spl(10),
-          spl(11)
-        )
-      })
+
 
     /**
      * 3. COMPUTE KPIs: QUEUERS PER SERVICE
@@ -112,18 +98,9 @@ object AnalyzerMain {
       *
      */
     // AMT OF QUEUERS PER SERVICE
-    parsedLogsStream.transform { rdd =>
-        val pubTime = rdd.map(_.pubTime.getTime).max()
-        val queuersPerServiceString = rdd.filter { observation: CallObservation =>
-          observation.pubTime.before(observation.dt_start) && observation.pubTime.after(observation.dt_offered_queue)
-        }.map { observation: CallObservation => (observation.services_name, 1) }
-          .reduceByKey((a, b) => a + b)
-          .map {
-            case (serviceName: String, amtOfQueuers: Int) =>
-              "{\"pubTime\":" + pubTime + ",\"serviceName\":\"" + serviceName + "\",\"amtOfQueuersInService\":" + amtOfQueuers.toInt + "}"
-          }
-        queuersPerServiceString
-    }.print(2)
+
+
+
 
 
     /**

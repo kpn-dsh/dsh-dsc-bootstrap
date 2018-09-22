@@ -63,6 +63,8 @@ object AnalyzerMain {
       )
     ).map { r: ConsumerRecord[KeyEnvelope, DataEnvelope] => r.value().getBinary.toStringUtf8 }
 
+    callcenterLogsStream.print(2)
+
     /**
       * 2. PARSE THE STREAM
       * Parse the csv line by splitting it on comma and putting the elements in the case class.
@@ -72,24 +74,6 @@ object AnalyzerMain {
     val dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
     val simpleDateFormat = new SimpleDateFormat(dateFormat)
 
-    val parsedLogsStream = callcenterLogsStream.transform(rdd =>
-      rdd.map { str: String =>
-        val spl = str.split(",")
-        CallObservation(
-          extractTimestamp(simpleDateFormat, spl(0)),
-          spl(1),
-          extractTimestamp(simpleDateFormat, spl(2)),
-          extractTimestamp(simpleDateFormat, spl(3)),
-          extractTimestamp(simpleDateFormat, spl(4)),
-          extractTimestamp(simpleDateFormat, spl(5)),
-          extractTimestamp(simpleDateFormat, spl(6)),
-          extractTimestamp(simpleDateFormat, spl(7)),
-          spl(8),
-          spl(9),
-          spl(10),
-          spl(11)
-        )
-      })
 
     /**
       * 3. COMPUTE KPIs: WAIT TIME
@@ -108,22 +92,7 @@ object AnalyzerMain {
       * data structures, serialize them into byte arrays, and publish them onto the Kafka topic.
       */
 
-    parsedLogsStream.foreachRDD { rdd =>
-      val pubTime = rdd.map(_.pubTime.getTime).max()
 
-      val (totalQueueDuration, size) = rdd.filter { observation: CallObservation =>
-        (observation.pubTime.equals(observation.dt_start) || observation.pubTime.after(observation.dt_start))
-      }.map { observation: CallObservation =>
-        //total call duration in minutes, with queueing and all services included
-        val totalQueueDuration = (observation.dt_start.getTime - observation.dt_offered.getTime) / 60000d
-        (totalQueueDuration, 1.0)
-      }.reduce {
-        case ((totalQueueduration1: Double, size1: Double), (totalQueueDuration2: Double, size2: Double)) =>
-          (totalQueueduration1 + totalQueueDuration2, size1 + size2)
-      }
-      val avgQueueTime = totalQueueDuration / size
-      println(avgQueueTime)
-    }
 
     /**
       * To start any Spark streaming application, you need to call start and awaitTermination on the streaming context

@@ -63,7 +63,7 @@ object AnalyzerMain {
       )
     ).map { r: ConsumerRecord[KeyEnvelope, DataEnvelope] => r.value().getBinary.toStringUtf8 }
 
-    callcenterLogsStream.print(30)
+    callcenterLogsStream.print(2)
 
     /**
       * 2. PARSE THE STREAM
@@ -74,24 +74,7 @@ object AnalyzerMain {
     val dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
     val simpleDateFormat = new SimpleDateFormat(dateFormat)
 
-    val parsedLogsStream = callcenterLogsStream.transform(rdd =>
-      rdd.map { str: String =>
-        val spl = str.split(",")
-        CallObservation(
-          extractTimestamp(simpleDateFormat, spl(0)),
-          spl(1),
-          extractTimestamp(simpleDateFormat, spl(2)),
-          extractTimestamp(simpleDateFormat, spl(3)),
-          extractTimestamp(simpleDateFormat, spl(4)),
-          extractTimestamp(simpleDateFormat, spl(5)),
-          extractTimestamp(simpleDateFormat, spl(6)),
-          extractTimestamp(simpleDateFormat, spl(7)),
-          spl(8),
-          spl(9),
-          spl(10),
-          spl(11)
-        )
-      })
+
 
     /**
       * 3. COMPUTE KPIs: QUEUERS AND CALLERS
@@ -109,18 +92,10 @@ object AnalyzerMain {
       * The logic of the producer will package the key and the value in the appropriate KeyEnvelope and DataEnvelope
       * data structures, serialize them into byte arrays, and publish them onto the Kafka topic.
       */
-    parsedLogsStream.foreachRDD { rdd =>
-      val pubTime = rdd.map(_.pubTime.getTime).max()
-      val amtOfCallers = rdd.count()
 
-      val amtOfQueuers = rdd.filter { observation =>
-        observation.pubTime.before(observation.dt_start) && observation.pubTime.after(observation.dt_offered_queue)
-      }.count()
 
-      val ratio = 1.0 - (amtOfQueuers.toDouble / amtOfCallers.toDouble)
 
-      println("amtOfCallers: " + amtOfCallers + " amtOfQueuers: " + amtOfQueuers + " ratio: " + ratio)
-    }
+
 
     /**
       * To start any Spark streaming application, you need to call start and awaitTermination on the streaming context
