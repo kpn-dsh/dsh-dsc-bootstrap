@@ -55,17 +55,10 @@ object AnalyzerMain {
       * Extract the JSON message from the data envelope by mapping the record:
       * (r: ConsumerRecord[KeyEnvelope, DataEnvelope] => record.value().getBinary.toStringUtf8)
       */
-    val callcenterLogsStream = KafkaUtils
-      .createDirectStream[KeyEnvelope, DataEnvelope](
-        ssc,
-        PreferConsistent,
-        ConsumerStrategies.Subscribe[KeyEnvelope, DataEnvelope](
-          Array(ConfigFetcher.inputCallcenterLogsTopic),
-          kafkaParams
-        )
-      ).map { r: ConsumerRecord[KeyEnvelope, DataEnvelope] => r.value().getBinary.toStringUtf8 }
 
-    callcenterLogsStream.print(2)
+
+
+
 
 
     /**
